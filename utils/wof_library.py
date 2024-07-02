@@ -29,16 +29,22 @@ import shutil
 import random
 import time
 import json
-
+from datetime import datetime
 
 # Wall of Flippers "library" for important functions and classes :3
 import utils.wof_cache as cache # for important configurations and data :3
 
+last_seen_state = {}
 
 def log(s_table):
-    """logs data to the log file (utils/wof_log.txt)"""
+    """logs data to the log file"""
+    global last_seen_state
+
     with open('Flipper.json', 'r', encoding='utf-8') as flipper_file: # Load flipper data from Flipper.json with UTF-8 encoding
         flipper_data = json.load(flipper_file)
+
+    new_data = False # Check to see if there is new data
+
     for s_flipper in flipper_data:
         if s_flipper["MAC"] == s_table["MAC"] and s_flipper["Name"] == s_table["Name"]:
             s_flipper.update({ # Update the flipper data
@@ -48,9 +54,14 @@ def log(s_table):
                 'Name': s_table['Name'],
                 'Type': s_table['Type'],
             })
+
+            # Check if the flipper data has changed
+            if s_flipper["MAC"] not in last_seen_state or last_seen_state[s_flipper["MAC"]] != s_flipper:
+                new_data = True
+                last_seen_state[s_flipper["MAC"]] = s_flipper.copy()
             break
     else:
-        flipper_data.append({ # Add the flipper data
+        new_flipper = ({ # Add new flipper data
             "Name": s_table['Name'],
             "RSSI": s_table['RSSI'],
             "MAC": s_table['MAC'],
@@ -59,9 +70,27 @@ def log(s_table):
             "unixFirstSeen": s_table['unixFirstSeen'],
             "Type": s_table['Type'],
             "UUID": s_table['UUID'],
+            "Timestamp": datetime.now().isoformat(),
         })
+        flipper_data.append(new_flipper)
+        new_data = True
+        last_seen_state[s_table["MAC"]] = new_flipper # Update the last seen state
+    
     with open('Flipper.json', 'w', encoding='utf-8') as flipper_file: # Save the flipper data to Flipper.json
         json.dump(flipper_data, flipper_file, indent=4)     
+    
+    if new_data: # Only create a new log if there is new or updated data
+        logs_dir = 'logs'
+        os.makedirs(logs_dir, exist_ok=True)
+
+        current_time = datetime.now().strftime("%Y%m%d%H%M%S")
+        log_filename = os.path.join(logs_dir, f"flog_{current_time}.json")
+
+        # Only log devices that have new or updated data
+        log_data = [device for mac, device in last_seen_state.items() if device['unixLastSeen'] == s_table['unixLastSeen']]
+
+        with open(log_filename, 'w', encoding='utf-8') as flog:
+            json.dump(log_data, flog, indent=4)
 
 def unix2text(unix_timestamp):
     """converts a unix timestamp to a human readable format."""
