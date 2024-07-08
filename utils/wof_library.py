@@ -29,7 +29,7 @@ import shutil
 import random
 import time
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Wall of Flippers "library" for important functions and classes :3
 import utils.wof_cache as cache # for important configurations and data :3
@@ -39,6 +39,7 @@ last_seen_state = {}
 def log(s_table):
     """logs data to the log file"""
     global last_seen_state
+    current_time = int(time.time())
 
     with open('Flipper.json', 'r', encoding='utf-8') as flipper_file: # Load flipper data from Flipper.json with UTF-8 encoding
         flipper_data = json.load(flipper_file)
@@ -47,6 +48,8 @@ def log(s_table):
 
     for s_flipper in flipper_data:
         if s_flipper["MAC"] == s_table["MAC"] and s_flipper["Name"] == s_table["Name"]:
+            last_seen = int(s_flipper['unixLastSeen'])
+
             s_flipper.update({ # Update the flipper data
                 'RSSI': str(s_table['RSSI']),
                 'Detection Type': s_table['Detection Type'],
@@ -54,6 +57,13 @@ def log(s_table):
                 'Name': s_table['Name'],
                 'Type': s_table['Type'],
             })
+
+            if 'SightingCount' not in s_flipper:
+                s_flipper['SightingCount'] = 1
+                s_flipper['LastCountedSighting'] = s_table['unixLastSeen']
+            elif last_seen - int(s_flipper['LastCountedSighting']) > 86400:
+                s_flipper['SightingCount'] += 1
+                s_flipper['LastCountedSighting'] = s_table['unixLastSeen']
 
             # Check if the flipper data has changed
             if s_flipper["MAC"] not in last_seen_state or last_seen_state[s_flipper["MAC"]] != s_flipper:
@@ -71,6 +81,8 @@ def log(s_table):
             "Type": s_table['Type'],
             "UUID": s_table['UUID'],
             "Timestamp": datetime.now().isoformat(),
+            "SightingCount": 1,
+            "LastCountedSighting": s_table['unixLastSeen'],
         })
         flipper_data.append(new_flipper)
         new_data = True
@@ -83,11 +95,11 @@ def log(s_table):
         logs_dir = 'logs'
         os.makedirs(logs_dir, exist_ok=True)
 
-        current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-        log_filename = os.path.join(logs_dir, f"flog_{current_time}.json")
+        log_current_time = datetime.now().strftime("%Y%m%d%H%M%S")
+        log_filename = os.path.join(logs_dir, f"flog_{log_current_time}.json")
 
         # Only log devices that have new or updated data
-        log_data = [device for mac, device in last_seen_state.items() if device['unixLastSeen'] == s_table['unixLastSeen']]
+        log_data = [device for mac, device in last_seen_state.items() if int(device['unixLastSeen']) == int(s_table['unixLastSeen'])]
 
         with open(log_filename, 'w', encoding='utf-8') as flog:
             json.dump(log_data, flog, indent=4)
