@@ -56,6 +56,7 @@ def log(s_table):
                 'unixLastSeen': s_table['unixLastSeen'],
                 'Name': s_table['Name'],
                 'Type': s_table['Type'],
+                'Timestamp': datetime.now().isoformat(),
             })
 
             if 'SightingCount' not in s_flipper:
